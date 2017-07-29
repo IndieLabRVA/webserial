@@ -1,0 +1,95 @@
+﻿<!DOCTYPE html>
+
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="utf-8" />
+    <title></title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.8.3/underscore-min.js"></script>
+</head>
+<body>
+    <input type="text" style="width: 450px;" id="input" />
+    <button id="send">Send</button>
+    <p>
+        <label>Output:</label>
+        <pre style="max-height: 500px; overflow: auto;" id="output">
+
+        </pre>
+    </p>
+</body>
+</html>
+
+<script type="text/javascript">
+    var conn;
+    var comPort;
+
+    var parseMessage = function(message) {
+        console.log(message);
+        $('#output').text($('#output').text() + message + '\n');
+        $('#output').animate({ scrollTop: $('#output').prop("scrollHeight") + 200 }, 500);
+        var jsonMessage = "";
+
+        try {
+            jsonMessage = JSON.parse(message);
+        } catch (e) {
+            return;
+        }
+
+        //parse serial ports and set USB COM port
+        if (jsonMessage.SerialPorts) {
+            var serialPorts = jsonMessage.SerialPorts;
+            var usbPort = _.findIndex(serialPorts,
+                function (x) { return x.Friendly.includes('Prolific USB-to-Serial Comm Port'); });
+            if (usbPort !== -1) {
+                comPort = serialPorts[usbPort].Name;
+                console.log('COM port set to ' + comPort);
+                conn.send('open ' + comPort + ' 5800');
+            } else {
+                console.log('Could not find USB serial port');
+            }
+        }
+
+        if (jsonMessage.P && jsonMessage.P === comPort) {
+            var rawMessage = jsonMessage.D;
+            if (rawMessage) {
+                console.log(rawMessage);
+            }
+        }
+    };
+
+    var sendMessage = function(message) {
+        return 'send ' + comPort + ' ' + message + ' \n';
+    };
+
+    $('#send').click(function(e) {
+        e.preventDefault();
+        var message = $('#input').val();
+        console.log('sending: ' + message);
+        sendMessage(message);
+        $('#input').val('');
+    });
+
+    try {
+        //get connection to serial scale websocket
+        if (window["WebSocket"]) {
+            conn = new WebSocket("ws://localhost:8989/ws");
+            conn.onclose = function () {
+                console.log('serial websocket connection closed');
+            };
+            conn.onmessage = function (evt) {
+                parseMessage(evt.data);
+            };
+            conn.onopen = function () {
+                conn.send('list');
+            };
+            conn.onerror = function () {
+                console.log("web sockets error");
+            }
+        }
+        else {
+            console.log('Your browser does not support WebSockets.');
+        }
+    } catch (e) {
+        console.log('Serial proxy not available');
+    }
+</script>
