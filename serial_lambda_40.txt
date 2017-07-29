@@ -1,0 +1,10 @@
+baud=4800
+bits=8
+stop = 1
+parity=none
+crlf
+etxt-char=015
+prompt-char=021
+break-char=043
+erase-char=010
+kill char=010
